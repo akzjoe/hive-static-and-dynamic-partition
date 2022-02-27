@@ -1,0 +1,199 @@
+ hive partition with table zipcodes
+
+First we need to create stage table or temp table in hive with all the columns
+
+hive> create table zipcodes_stage(recordnumber int,country string,city string,zipcode int,state string) row format delimited fields terminated by ',';
+OK
+
+Loading data from hdfs to hive table
+
+hive> load data inpath '/user/cloudera/input/part.txt' into  table zipcodes_stage;
+
+
+Loading data to table default.zipcodes_stage
+Table default.zipcodes_stage stats: [numFiles=1, totalSize=568]
+OK
+
+now we create a static partition table mention the column we want to partition
+
+
+create table zipcodes_static(recordnumber int,country string,city string,zipcode int) 
+partitioned by(state string) row format delimited fields terminated by ',';
+
+
+now we overwrite the static table with column value by which you want to partition
+
+repeat it for every unique values
+
+
+hive> insert overwrite table zipcodes_static partition(state='NC') 
+select recordnumber int,country string,city string,zipcode int from zipcodes_stage where state='NC';
+
+Time taken: 46.136 seconds
+
+
+hive> insert overwrite table zipcodes_static partition(state='AL') 
+select recordnumber int,country string,city string,zipcode int from zipcodes_stage where state='AL';
+
+Time taken: 36.519 seconds
+
+hive> insert overwrite table zipcodes_static partition(state='AZ') 
+select recordnumber int,country string,city string,zipcode int from zipcodes_stage where state='AZ';
+
+time taken: 32.142 seconds
+
+display the table...
+
+hive> select*from zipcodes_static;
+
+
+OK
+54354	US	SPRING GARDEN	36275	AL
+54355	US	SPRINGVILLE	35146	AL
+54356	US	SPRUCE PINE	35585	AL
+39827	US	MESA	85209	AZ
+39828	US	MESA	85210	AZ
+76511	US	ASH HILL	27007	NC
+76512	US	ASHEBORO	27203	NC
+76513	US	ASHEBORO	27204	NC
+Time taken: 0.212 seconds, Fetched: 8 row
+
+describe the table
+
+we can see the number of partition created ie 3
+
+
+hive> describe formatted zipcodes_static;
+OK
+
+
+
+# col_name            	data_type           	comment             
+	 	 
+recordnumber        	int                 	                    
+country             	string              	                    
+city                	string              	                    
+zipcode             	int                 	                    
+	 	 
+# Partition Information	 	 
+# col_name            	data_type           	comment             
+	 	 
+state               	string              	                    
+	 	 
+# Detailed Table Information	 	 
+Database:           	default             	 
+Owner:              	cloudera            	 
+CreateTime:         	Sat Feb 26 23:17:56 PST 2022	 
+LastAccessTime:     	UNKNOWN             	 
+Protect Mode:       	None                	 
+Retention:          	0                   	 
+Location:           	hdfs://quickstart.cloudera:8020/user/hive/warehouse/zipcodes_static	 
+Table Type:         	MANAGED_TABLE       	 
+Table Parameters:	 	 
+	numPartitions       	3                   
+	transient_lastDdlTime	1645946276          
+	 	 
+# Storage Information	 	 
+SerDe Library:      	org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe	 
+InputFormat:        	org.apache.hadoop.mapred.TextInputFormat	 
+OutputFormat:       	org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat	 
+Compressed:         	No                  	 
+Num Buckets:        	-1                  	 
+Bucket Columns:     	[]                  	 
+Sort Columns:       	[]                  	 
+Storage Desc Params:	 	 
+	field.delim         	,                   
+	serialization.format	,                   
+Time taken: 0.143 seconds, Fetched: 36 row(s)
+
+
+
+NOW
+
+
+dynamic partition.....
+
+
+hive> create table zipcodes_dynamic(recordnumber int,country string,city string,zipcode int) partitioned by(state string) 
+row format delimited fields terminated by ',';
+
+set properties for dynamic partition
+
+hive> set hive.exec.dynamic.partition=true;
+hive> set hive.exec.dynamic.partition.mode=nonstrict;
+
+hive> insert overwrite table zipcodes_dynamic partition (state) 
+select* from zipcodes_stage;
+
+
+hive> describe formatted zipcodes_dynamic;
+OK
+# col_name            	data_type           	comment             
+	 	 
+recordnumber        	int                 	                    
+country             	string              	                    
+city                	string              	                    
+zipcode             	int                 	                    
+	 	 
+# Partition Information	 	 
+# col_name            	data_type           	comment             
+	 	 
+state               	string              	                    
+	 	 
+# Detailed Table Information	 	 
+Database:           	default             	 
+Owner:              	cloudera            	 
+CreateTime:         	Sat Feb 26 23:30:52 PST 2022	 
+LastAccessTime:     	UNKNOWN             	 
+Protect Mode:       	None                	 
+Retention:          	0                   	 
+Location:           	hdfs://quickstart.cloudera:8020/user/hive/warehouse/zipcodes_dynamic	 
+Table Type:         	MANAGED_TABLE       	 
+Table Parameters:	 	 
+	numPartitions       	6                   
+	transient_lastDdlTime	1645947052          
+	 	 
+# Storage Information	 	 
+SerDe Library:      	org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe	 
+InputFormat:        	org.apache.hadoop.mapred.TextInputFormat	 
+OutputFormat:       	org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat	 
+Compressed:         	No                  	 
+Num Buckets:        	-1                  	 
+Bucket Columns:     	[]                  	 
+Sort Columns:       	[]                  	 
+Storage Desc Params:	 	 
+	field.delim         	,                   
+	serialization.format	,                   
+Time taken: 0.086 seconds, Fetched: 36 row(s)
+hive> select*from zipcodes_dynamic where state='NC';
+OK
+76511	US	ASH HILL	27007	NC
+76512	US	ASHEBORO	27203	NC
+76513	US	ASHEBORO	27204	NC
+Time taken: 4.188 seconds, Fetched: 3 row(s)
+
+
+here the number of partition is 6 which is done automaticaly
+
+
+
+hive> select*from zipcodes_dynamic where state='NC';
+
+OK
+
+
+76511	US	ASH HILL	27007	NC
+76512	US	ASHEBORO	27203	NC
+76513	US	ASHEBORO	27204	NC
+Time taken: 4.188 seconds, Fetched: 3 row(s)
+
+
+
+
+
+
+
+
+
+
+
